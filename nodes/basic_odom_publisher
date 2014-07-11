@@ -30,27 +30,29 @@ from geometry_msgs.msg import Quaternion
 from nav_msgs.msg import Odometry
 from clearpath_base.msg import Encoders
 
-ODOM_POSE_COVAR_MOTION = [1e-3, 0, 0, 0, 0, 0, 
-                        0, 1e-3, 0, 0, 0, 0,
+# Jake & Jens:
+# Modified covariance matrices
+ODOM_POSE_COVAR_MOTION = [0.003, 0, 0, 0, 0, 0, 
+                        0, 0.003, 0, 0, 0, 0,
                         0, 0, 1e6, 0, 0, 0,
                         0, 0, 0, 1e6, 0, 0,
                         0, 0, 0, 0, 1e6, 0,
                         0, 0, 0, 0, 0, 1e6]
 ODOM_POSE_COVAR_NOMOVE = [1e-9, 0, 0, 0, 0, 0, 
-                         0, 1e-3, 1e-9, 0, 0, 0,
+                         0, 1e-9, 0, 0, 0, 0,
                          0, 0, 1e6, 0, 0, 0,
                          0, 0, 0, 1e6, 0, 0,
                          0, 0, 0, 0, 1e6, 0,
                          0, 0, 0, 0, 0, 1e-9]
 
-ODOM_TWIST_COVAR_MOTION = [1e-3, 0, 0, 0, 0, 0, 
-                         0, 1e-3, 0, 0, 0, 0,
+ODOM_TWIST_COVAR_MOTION = [0.003, 0, 0, 0, 0, 0, 
+                         0, 0.003, 0, 0, 0, 0,
                          0, 0, 1e6, 0, 0, 0,
                          0, 0, 0, 1e6, 0, 0,
                          0, 0, 0, 0, 1e6, 0,
                          0, 0, 0, 0, 0, 1e6]
 ODOM_TWIST_COVAR_NOMOVE = [1e-9, 0, 0, 0, 0, 0, 
-                          0, 1e-3, 1e-9, 0, 0, 0,
+                          0, 1e-9, 0, 0, 0, 0,
                           0, 0, 1e6, 0, 0, 0,
                           0, 0, 0, 1e6, 0, 0,
                           0, 0, 0, 0, 1e6, 0,
@@ -82,10 +84,20 @@ class DeadReckoning(object):
         dr = ((data.encoders[0].travel - self.last_encoder.encoders[0].travel) +
               (data.encoders[1].travel - self.last_encoder.encoders[1].travel)) / 2;
         da = ((data.encoders[1].travel - self.last_encoder.encoders[1].travel) - 
-              (data.encoders[0].travel - self.last_encoder.encoders[0].travel)) / self.width;
+              (data.encoders[0].travel - self.last_encoder.encoders[0].travel)) / self.width / 2; # Jake added the factor of 2 to correct for inaccurate rotation odometry
         ddr = (data.encoders[0].speed + data.encoders[1].speed)/2;
         dda = (data.encoders[1].speed - data.encoders[0].speed)/self.width;
         self.last_encoder = data
+
+        # position sanity check, by Jake
+        if abs(dr) > 1:
+            rospy.logerr("Encoder rollover detected, dr = %s. Setting dr = 0 instead." % dr)
+            dr = 0
+
+        # orientation sanity check, by Jake
+        if abs(da) > 0.1:
+            rospy.logerr("Encoder rollover detected, da = %s. Setting da = 0 instead." % da)
+            da = 0
 
         # Update data
         o = self.odom.pose.pose.orientation
